@@ -55,13 +55,13 @@ Troubleshooting
 
 If there is problem when logging into GUI system, try add this line to disable wayland:
 
-```nix
+```
 programs.sway.enable = false
 ```
 
 And also try to disable sddm to use lightdm
 
-```nix
+```
 services.xserver.displayManager.sddm.enable = false;
 ```
 
@@ -71,14 +71,14 @@ unable to open database file at /run/current-system/sw/bin/command-not-found
 
 type execute following command to fix it:
 
-```
+```sh
 sudo nix-channel --add https://nixos.org/channels/nixos-unstable nixos
 sudo nix-channel --update
 ```
 
 and confirm it with:
 
-```
+```sh
 command-not-found hello
 ```
 
