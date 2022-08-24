@@ -1,92 +1,134 @@
 # Edit this configuration file to define what should be installed on
 # your system.  Help is available in the configuration.nix(5) man page
 # and in the NixOS manual (accessible by running ‘nixos-help’).
-{ config, pkgs, lib, ... }: 
+{ config, pkgs, lib, nixpkgs, ... }: 
 {
   options = {
-    owner = lib.mkOption {
-      type = lib.types.str;
-      description = ''
-        The user name of the owner of this system.
-      '';
-    };
     profileName = lib.mkOption {
       type = lib.types.str;
       description = ''
         The directory name of profile. This will decide networking.hostName.
       '';
     };
-    hasGUI = lib.mkOption {
+    owner = lib.mkOption {
+      type = lib.types.str;
+      description = ''
+        The user name of the owner of this system.
+      '';
+    };
+    mainInterface = lib.mkOption {
+      type = lib.types.str;
+      description = ''
+        The main network interface of this system.
+      '';
+    };
+    debug.enable = lib.mkOption {
       type = lib.types.bool;
       default = true;
       description = ''
-        If `hasGUI == false` then GUI apps will not be installed.
+        Enable debug options
+      '';
+    };
+    gui.enable = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = ''
+        If `gui.enable == false` then GUI apps will not be installed.
+      '';
+    };
+    gui.desktopEnvironment = lib.mkOption {
+      type = lib.types.enum [ "kde" "gnome" null ];
+      default = "kde";
+      description = ''
+        Which DE to use: kde-plasma or gnome
+      '';
+    };
+    gui.displayServer = lib.mkOption {
+      type = lib.types.enum [ "x11" "wayland" ];
+      default = if config.gui.desktopEnvironment == "gnome" then "wayland" else "x11";
+      description = ''
+        Which Display Server to use: x11 or wayland
+      '';
+    };
+    exposed.domain-name = lib.mkOption {
+      type = lib.types.str;
+      description = ''
+        The exposed domain name of this host machine.
+        (this decides configuration of exposed services like nginx etc.)
+      '';
+    };
+    exposed.subdomain-root = lib.mkOption {
+      type = lib.types.str;
+      description = ''
+        Root of the exposed sub-domain names of this host machine.
+        (this decides configuration of exposed services like nginx etc.)
+      '';
+    };
+    exposed.port = lib.mkOption {
+      type = lib.types.port;
+      description = ''
+        The exposed port of this host machine.
+        (this decides configuration of exposed services like nginx etc.)
       '';
     };
   };
 
   config = {
+    # Boot
     boot.loader.grub = {
       enable = true;
       #useOSProber = true;
-      device = "nodev";
-      efiSupport = true;
-      efiInstallAsRemovable = true;
-      splashImage = ../resources/nixos-neofetch-ascii-wallpaper.png;
+      device = lib.mkDefault "nodev";
+      efiSupport = lib.mkDefault true;
+      efiInstallAsRemovable = lib.mkDefault true;
+      splashImage = lib.mkForce ../resources/nixos-neofetch-ascii-wallpaper.png;
+      extraEntries = ''
+        menuentry "Reboot" {
+          reboot
+        }
+        menuentry 'System setup' {
+         fwsetup
+        }
+      '';
     };
     #boot.loader.efi.canTouchEfiVariables = true;
     #boot.supportedFilesystems = [ "ntfs" ];
- 
-    # Enable Zen kernel to optmize performance
-    boot.kernelPackages = pkgs.linuxPackages_zen;
 
+    # Kernel: enable Zen to optmize performance
+    boot.kernelPackages = lib.mkDefault pkgs.linuxPackages_zen;
+
+    # Network
     networking.hostName = config.profileName;
-    networking.wireless = {
-      enable = true;  # Enables wireless support via wpa_supplicant.
-      userControlled.enable = true;
-    };
     networking.enableIPv6 = lib.mkDefault false;
 
-    # The global useDHCP flag is deprecated, therefore explicitly set to false here.
-    # Per-interface useDHCP will be mandatory in the future, so this generated config
-    # replicates the default behaviour.
-    #networking.useDHCP = false;
-    #networking.interfaces.enp2s0.useDHCP = true;
+    networking.networkmanager.enable = true;
+    systemd.services.NetworkManager-wait-online.enable = false; # workaround for issue: https://mail.gnome.org/archives/networkmanager-list/2018-June/msg00008.html
+    #networking.networkmanager.unmanaged = builtins.attrNames config.networking.wireless.networks;
+    networking.networkmanager.unmanaged = builtins.attrNames config.networking.wireguard.interfaces;
 
-    hardware.video.hidpi.enable = true;
-    #services.xserver.dpi = 180;
+    networking.wireless.enable = (config.networking.wireless.networks != {});  # Enables wireless support via wpa_supplicant.
+    networking.wireless.userControlled.enable = !config.networking.networkmanager.enable;
+
+    # Firewall
+    networking.firewall.enable = lib.mkDefault true;
 
     # Configure network proxy if necessary
     # networking.proxy.default = "http://user:password@proxy:port/";
-    # networking.proxy.noProxy = "127.0.0.1,localhost,internal.domain";
-
-    # Select internationalisation properties.
-    i18n.defaultLocale = "en_US.UTF-8";
-
-    #i18n.inputMethod.enabled = "ibus";
-    #i18n.inputMethod.ibus.engines = with pkgs.ibus-engines; [ rime ];
-
-    i18n.inputMethod.enabled = "fcitx";
-    i18n.inputMethod.fcitx.engines = with pkgs.fcitx-engines; [ rime ];
-
-    fonts = {
-      fonts = with pkgs; [
-        noto-fonts
-        noto-fonts-cjk
-        noto-fonts-emoji
-        source-code-pro
-        wqy_microhei
-        wqy_zenhei
-      ];
-    };
+    # networking.proxy.noProxy = "127.0.0.1,[::1],localhost,internal.domain";
 
     console = {
-      font = "Lat2-Terminus16";
-      keyMap = "us";
-      #useXkbConfig = true;
+      font = lib.mkOverride 999 "Lat2-Terminus16";
+      keyMap = lib.mkDefault "us";
+      useXkbConfig = lib.mkDefault config.gui.enable;
     };
 
     nixpkgs.config.allowUnfree = true;
+
+    # users that have additional rights when connecting to the Nix daemon
+    nix.settings.trusted-users = [ "root" config.owner ];
+
+    # make nix version keep sync with nixos
+    nix.settings.nix-path = [ "nixpkgs=${nixpkgs}" ];
 
     # automatic run `nix-store --optimise` everyday
     nix.optimise.automatic = true;
@@ -100,17 +142,18 @@
       '';
     };
 
-    # Enable the firewall.
-    networking.firewall.enable = lib.mkDefault true;
+    # Select internationalisation properties.
+    i18n.defaultLocale = "en_US.UTF-8";
+    i18n.supportedLocales = [ "zh_CN.UTF-8/UTF-8" "en_US.UTF-8/UTF-8" ];
 
-    # Enable the X11 windowing system.
-    services.xserver.enable = true;
-    services.xserver.layout = "us";
+    # Power saving
+    #DOC: https://www.kernel.org/doc/Documentation/cpu-freq/governors.txt
+    powerManagement.cpuFreqGovernor = lib.mkDefault "powersave";
+    hardware.nvidia.powerManagement.enable = lib.mkDefault false; # Experimental power management, see the NVIDIA docs, on Chapter 21.
 
-    # Enable the KDE Desktop Environment.
-    services.xserver.displayManager.sddm.enable = true; #NOTE: disable sddm to use lightdm if there is any issure about login
-    services.xserver.desktopManager.plasma5.enable = true;
-    #services.xserver.desktopManager.plasma5.useQtScaling = true; #Enable HiDPI scaling in Qt. seems no obvious effect
+    # HiDPI Display
+    hardware.video.hidpi.enable = lib.mkDefault true;
+    #services.xserver.dpi = 180; # for 4K monitor
 
     # Enable sound.
     # Volume Control: $ alsamixer
@@ -122,62 +165,80 @@
     hardware.bluetooth.enable = true;
 
     # Enable touchpad support.
-    # services.xserver.libinput.enable = true;
+    #services.xserver.libinput.enable = true;
 
     # Enable CUPS to print documents.
-    services.printing.enable = true;
+    services.printing.enable = lib.mkDefault false;
+    services.printing.drivers = []; #DOC: https://nixos.wiki/wiki/Printing
 
     # Define a user account. Don't forget to set a password with ‘passwd’.
     users.users.${config.owner} = {
       isNormalUser = true;
+      group = "${config.owner}";
       extraGroups = [
         "wheel" # Enable ‘sudo’ for the user.
-        "docker"
       ];
+    };
+
+    users.groups.${config.owner} = {
+      gid = 1000;
+      name = config.owner;
+      members = [ config.owner ];
     };
 
     # List packages installed in system profile. To search, run:
     # $ nix search wget
     environment.systemPackages = with pkgs; [
       # sys tool
-      wget neovim
-      git git-crypt gnupg pinentry pinentry-qt icdiff
-      zsh antigen
-      fzf
-      tmux 
-      sqlite 
+      #neovim
+      #wget
+      #git git-crypt gnupg pinentry pinentry-qt icdiff
+      #zsh antigen
+      #fzf
+      #tmux 
+      #sqlite 
       xclip
-      neofetch # 查看系统信息, 硬件配置, 内核版本等
-      ripgrep ag #文本搜索，grep的替代品
-      fd # 文件名/目录名 搜索
-      tldr # 帮助文档, 更简单的 man
+      fd #文件名/目录名 搜索
+      tldr #帮助文档, 更简单的 man
       file #查看文件信息
       tree #树状展示文件目录结构
-
-      # gui sys tool
-      gparted #可视化分区工具
-      mtr-gui #my traceroute 网络诊断工具
-      fsearch # search files like 'everything on windows'
-      hardinfo # show hardware informations 查看系统硬件信息
-      qjournalctl # GUI log viewer
-
-      # required gui software
-      google-chrome
-
-      # daily gui software
-      spectacle #屏幕截图工具
-      remmina
-      okular #pdf文档查看
-      tdesktop # the telegram desktop client
+      #nm-tray #Network Manager frontend (tray icon?) written in Qt
     ];
 
-    # This value determines the NixOS release from which the default
-    # settings for stateful data, like file locations and database versions
-    # on your system were taken. It‘s perfectly fine and recommended to leave
-    # this value at the release version of the first install of this system.
-    # Before changing this value read the documentation for this option
-    # (e.g. man configuration.nix or on https://nixos.org/nixos/options.html).
-    system.stateVersion = "20.03"; # Did you read the comment?
-
   };
+
+  imports = [
+    # GUI Desktop Environment
+
+    { services.xserver.enable = config.gui.enable; }
+
+    { config = lib.mkIf (config.gui.enable && config.gui.desktopEnvironment == "gnome") {
+      services.xserver = {
+        displayManager.gdm.enable = true;
+        displayManager.gdm.wayland = (config.gui.displayServer == "wayland");
+        desktopManager.gnome.enable = true;
+        desktopManager.gnome.debug = config.debug.enable;
+      };
+    }; }
+
+    { config = lib.mkIf (config.gui.enable && config.gui.desktopEnvironment == "kde") {
+      services.xserver = {
+        desktopManager.plasma5.enable = true;
+        desktopManager.plasma5.useQtScaling = true; #Enable HiDPI scaling in Qt. seems no obvious effect
+      };
+    }; }
+
+    { config = lib.mkIf (config.gui.enable) {
+      i18n.inputMethod.enabled = "ibus";
+      i18n.inputMethod.ibus.engines = with pkgs.ibus-engines; [ rime ];
+
+      #i18n.inputMethod.enabled = "fcitx";
+      #i18n.inputMethod.fcitx.engines = with pkgs.fcitx-engines; [ rime ];
+
+      #i18n.inputMethod.enabled = "fcitx5";
+      #i18n.inputMethod.fcitx5.addons = with pkgs; [ fcitx5-rime fcitx5-chinese-addons ];
+    }; }
+
+  ];
+
 }
