@@ -2,7 +2,8 @@
 {
   config = {
     environment.systemPackages = with pkgs; [
-      expect # expect, autoexpect
+      lshw # 查看硬件信息，用法示例:  lshw -C network
+      pciutils # lspci 查看设备
     ];
   };
 }

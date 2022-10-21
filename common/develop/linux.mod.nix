@@ -2,7 +2,8 @@
 {
   config = {
     environment.systemPackages = with pkgs; [
-      expect # expect, autoexpect
+      patchelf
+      bintools-unwrapped
     ];
   };
 }

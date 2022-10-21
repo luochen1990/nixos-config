@@ -25,6 +25,9 @@
   environment.systemPackages = with pkgs; [
     # daily tui software
     httpie
+    unar # extract from rar file, free software replacement of unrar
+    unzip # extract from zip file
+    p7zip # support of 7z format, see 7-zip.org
 
     # daily gui software
 
@@ -40,7 +43,8 @@
     #nixos-cn.netease-cloud-music
 
     fsearch # search files like 'everything on windows'
-    spectacle #屏幕截图工具
+    #spectacle #屏幕截图工具
+    flameshot #屏幕截图工具
     crow-translate #dict, 翻译，带OCR功能
     qrencode # 二维码生成 provide qrencode command
 

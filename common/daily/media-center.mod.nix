@@ -1,6 +1,13 @@
 { pkgs, ... }: 
 {
-  environment.systemPackages = with pkgs; [
-    (kodi.withPackages (p: with p; [ inputstream-adaptive pvr-iptvsimple inputstreamhelper ])) #kodi with jiotv, last is for drm
+  environment.systemPackages = [
+    (pkgs.kodi.withPackages (kodiPackages: with kodiPackages; [
+      pvr-iptvsimple
+      #netflix
+      youtube
+      #svtplay
+      #inputstream-adaptive
+      #inputstreamhelper
+    ])) #kodi with jiotv, last is for drm
   ];
 }

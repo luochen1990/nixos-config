@@ -27,7 +27,7 @@
   config = {
     environment.systemPackages = with pkgs; [
       gcc gnumake
-      gdb patchelf
+      gdb
     ];
   };
 }

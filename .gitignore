@@ -1,6 +1,3 @@
-result
-*.secret.nix
-fact/
-!fact/*/.placeholder
-profiles/
-!profiles/example-nixos
+/result
+*.bak
+*.cache
